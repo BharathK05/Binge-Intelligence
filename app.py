@@ -1,8 +1,18 @@
 import streamlit as st
 import pandas as pd
 import json
+import plotly.express as px
 
-st.title("YouTube Time Analyzer & Next-Binge Predictor")
+st.set_page_config(page_title="YouTube Analyzer", page_icon="", layout="wide")
+
+# Stylish title
+st.markdown(
+    """
+    <h1 style='text-align: center; color: #FF4B4B;'>YouTube Time Analyzer & Next-Binge Predictor</h1>
+    <p style='text-align: center; font-size:18px;'>Upload your YouTube Takeout JSON and discover your watch habits</p>
+    """,
+    unsafe_allow_html=True
+)
 
 uploaded_file = st.file_uploader("Upload your YouTube history JSON", type="json")
 
@@ -45,10 +55,33 @@ if uploaded_file:
         last_week = genre_data.tail(7)['duration_min'].mean()
         predictions[genre] = round(last_week,1)
 
-    # Display
+    # Display predictions in a nice card-like view
     st.subheader("Predicted Next Binge Session (minutes)")
-    for genre, mins in predictions.items():
-        st.write(f"{genre}: {mins} minutes")
+    pred_df = pd.DataFrame(list(predictions.items()), columns=['Genre','Predicted Minutes'])
+    st.dataframe(pred_df, use_container_width=True)
 
     st.subheader("Daily Watch Time per Genre")
-    st.bar_chart(daily.pivot(index='date', columns='genre', values='duration_min'))
+
+    # Interactive Plotly chart
+    fig = px.bar(
+        daily,
+        x="date",
+        y="duration_min",
+        color="genre",
+        title="Daily Watch Time per Genre",
+        labels={"duration_min":"Minutes","date":"Date"},
+        hover_data=["genre","duration_min"]
+    )
+    fig.update_layout(barmode='stack', xaxis_title="Date", yaxis_title="Minutes Watched")
+    st.plotly_chart(fig, use_container_width=True)
+
+# Footer with your name & copyright
+st.markdown(
+    """
+    <hr style="margin-top: 50px; margin-bottom: 10px;">
+    <p style='text-align: center; color: grey; font-size:14px;'>
+    © 2025 Bharath Kalimuthu — All rights reserved.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
