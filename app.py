@@ -1,17 +1,16 @@
 import streamlit as st
 import pandas as pd
 import json
-import plotly.express as px
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from datetime import datetime
 
-st.set_page_config(page_title="YouTube Analyzer", page_icon="", layout="wide")
+st.set_page_config(page_title="YouTube Analyzer", page_icon="🎥", layout="centered")
 
-# Stylish title
+# Title with style
 st.markdown(
-    """
-    <h1 style='text-align: center; color: #FF4B4B;'>YouTube Time Analyzer & Next-Binge Predictor</h1>
-    <p style='text-align: center; font-size:18px;'>Upload your YouTube Takeout JSON and discover your watch habits</p>
-    """,
-    unsafe_allow_html=True
+    "<h1 style='text-align: center; color: #FF4B4B;'>🎥 YouTube Time Analyzer & Next-Binge Predictor</h1>",
+    unsafe_allow_html=True,
 )
 
 uploaded_file = st.file_uploader("Upload your YouTube history JSON", type="json")
@@ -42,46 +41,42 @@ if uploaded_file:
         return 'Other'
     df['genre'] = df.apply(lambda x: classify_genre(x['title'], x['channel']), axis=1)
 
+    # Average durations
     avg_duration = {'Movies':90,'Tech':10,'Music':4,'Gaming':30,'News':5,'Cooking':15,'Other':8}
     df['duration_min'] = df['genre'].map(avg_duration).fillna(8)
 
     daily = df.groupby(['date','genre'])['duration_min'].sum().reset_index()
     daily['date'] = pd.to_datetime(daily['date'])
 
-    # Prediction
+    # --- Machine Learning: Linear Regression per genre ---
     predictions = {}
     for genre in daily['genre'].unique():
         genre_data = daily[daily['genre']==genre].sort_values('date')
-        last_week = genre_data.tail(7)['duration_min'].mean()
-        predictions[genre] = round(last_week,1)
+        y = genre_data['duration_min'].values
+        X = np.arange(len(y)).reshape(-1,1)  # time index as feature
+        if len(X) > 3:  # only fit if enough data
+            model = LinearRegression().fit(X, y)
+            next_day_index = np.array([[len(y)+1]])
+            pred = model.predict(next_day_index)[0]
+            predictions[genre] = round(pred,1)
+        else:
+            predictions[genre] = round(y.mean(),1)
 
-    # Display predictions in a nice card-like view
-    st.subheader("Predicted Next Binge Session (minutes)")
-    pred_df = pd.DataFrame(list(predictions.items()), columns=['Genre','Predicted Minutes'])
-    st.dataframe(pred_df, use_container_width=True)
+    # --- Display ---
+    st.subheader("🔮 Predicted Next Binge Session (minutes)")
+    for genre, mins in predictions.items():
+        st.write(f"**{genre}**: {mins} minutes")
 
-    st.subheader("Daily Watch Time per Genre")
+    st.subheader("📊 Daily Watch Time per Genre")
+    st.bar_chart(daily.pivot(index='date', columns='genre', values='duration_min'))
 
-    # Interactive Plotly chart
-    fig = px.bar(
-        daily,
-        x="date",
-        y="duration_min",
-        color="genre",
-        title="Daily Watch Time per Genre",
-        labels={"duration_min":"Minutes","date":"Date"},
-        hover_data=["genre","duration_min"]
+    # Footer
+    st.markdown(
+        """
+        <hr>
+        <div style='text-align: center; color: gray; font-size: small;'>
+        © 2025 Bharath Kalimuthu
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    fig.update_layout(barmode='stack', xaxis_title="Date", yaxis_title="Minutes Watched")
-    st.plotly_chart(fig, use_container_width=True)
-
-# Footer with your name & copyright
-st.markdown(
-    """
-    <hr style="margin-top: 50px; margin-bottom: 10px;">
-    <p style='text-align: center; color: grey; font-size:14px;'>
-    © 2025 Bharath Kalimuthu — All rights reserved.
-    </p>
-    """,
-    unsafe_allow_html=True
-)
